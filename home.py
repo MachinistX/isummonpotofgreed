@@ -1,17 +1,15 @@
 import streamlit as st
 from pymongo import MongoClient
-from collections import Counter
-import pandas as pd
+import os
+import re
 
-st.set_page_config(layout="wide", page_title="Yugioh Deck Analyzer with MongoDB")
-
-st.title("Yugioh Deck Analyzer (MongoDB Edition)")
+st.set_page_config(layout="wide", page_title="Yugioh MongoDB Updater")
+st.title("Update Card Database from Project Ignis Scripts")
 
 # -----------------------------
 # MongoDB connection
 # -----------------------------
 mongo_conf = st.secrets["mongodb"]
-
 uri = f"mongodb+srv://{mongo_conf['user']}:{mongo_conf['password']}@{mongo_conf['host']}/?appName={mongo_conf['appName']}"
 client = MongoClient(uri)
 db = client[mongo_conf["database"]]
@@ -20,119 +18,90 @@ collection = db[mongo_conf["collection"]]
 # -----------------------------
 # Helper functions
 # -----------------------------
-def parse_ydk(file_content: str):
-    """Parse YDK file into main, extra, and side deck card ID lists"""
-    main, extra, side = [], [], []
-    section = None
-    for line in file_content.splitlines():
+def parse_lua_functions(lua_content):
+    """
+    Parse all recognized functions in a Lua script and return as nested dict.
+    Recognized: initial_effect, condition, target, operation, rfilter, tgcond, tgtg, tgop, etc.
+    """
+    funcs_to_extract = ["initial_effect","condition","target","operation","rfilter","tgcond","tgtg","tgop"]
+    func_pattern = re.compile(r"function\s+s\.(\w+)\s*\((.*?)\)(.*?)end", re.DOTALL)
+    
+    result = {}
+    for match in func_pattern.finditer(lua_content):
+        fname = match.group(1)
+        if fname in funcs_to_extract:
+            params = [p.strip() for p in match.group(2).split(",")]
+            body = match.group(3).strip()
+            result[fname] = {
+                "parameters": params,
+                "body": body
+            }
+    return result
+
+def extract_names(lua_content):
+    """
+    Extract Japanese and English names from the first comment lines
+    """
+    lines = lua_content.splitlines()
+    name_jp = name_en = ""
+    for line in lines:
         line = line.strip()
-        if line == "#main":
-            section = "main"
-            continue
-        elif line == "#extra":
-            section = "extra"
-            continue
-        elif line == "!side" or line == "#side":
-            section = "side"
-            continue
-        if line.startswith("#") or line == "":
-            continue
-        if line.isdigit():
-            cid = int(line)
-            if section == "main":
-                main.append(cid)
-            elif section == "extra":
-                extra.append(cid)
-            elif section == "side":
-                side.append(cid)
-    return main, extra, side
-
-def show_images(tab, card_docs):
-    """Display card images in Streamlit columns (100px)"""
-    if not card_docs:
-        tab.write("_No cards in this section._")
-        return
-    cols_per_row = 6
-    for i in range(0, len(card_docs), cols_per_row):
-        row_docs = card_docs[i: i + cols_per_row]
-        cols = tab.columns(len(row_docs))
-        for col, card in zip(cols, row_docs):
-            name = card.get("name", f"Unknown ({card.get('id')})")
-            count = card.get("copies", 1)
-            caption = f"{name} ×{count}"
-            img_url = card.get("image_url")
-            if img_url:
-                col.image(img_url, caption=caption, width=100)
-            else:
-                col.write(caption)
+        if line.startswith("--"):
+            if not name_jp:
+                name_jp = line[2:].strip()
+            elif not name_en:
+                name_en = line[2:].strip()
+                break
+    return name_jp, name_en
 
 # -----------------------------
-# Upload YDK
+# Update Database Button
 # -----------------------------
-st.subheader("Upload Your YDK Deck File")
-uploaded_file = st.file_uploader(".YDK file", type=["ydk"])
+st.subheader("Update Database from Project Ignis Scripts")
+st.info("This will iterate over all .lua files in the `official/` folder and update MongoDB.")
 
-if uploaded_file:
-    content = uploaded_file.getvalue().decode("utf-8", errors="ignore")
-    main_ids, extra_ids, side_ids = parse_ydk(content)
-    all_ids = list(set(main_ids + extra_ids + side_ids))
-    if not all_ids:
-        st.error("No card IDs found in the YDK file.")
-        st.stop()
-    st.success(f"Deck parsed: Main {len(main_ids)}, Extra {len(extra_ids)}, Side {len(side_ids)}")
+repo_path = st.text_input("Path to local Project Ignis repo (must contain 'official/' folder)")
 
-    # Query MongoDB for only the cards in the deck
-    card_docs_raw = list(collection.find({"id": {"$in": all_ids}}))
-    if not card_docs_raw:
-        st.warning("No cards found in MongoDB. Make sure the database is populated.")
-        st.stop()
+if st.button("Update Database") and repo_path:
+    official_folder = os.path.join(repo_path, "official")
+    if not os.path.isdir(official_folder):
+        st.error(f"Folder not found: {official_folder}")
+    else:
+        lua_files = [f for f in os.listdir(official_folder) if f.endswith(".lua")]
+        st.write(f"Found {len(lua_files)} Lua scripts.")
+        updated = 0
+        for lua_file in lua_files:
+            file_path = os.path.join(official_folder, lua_file)
+            with open(file_path, "r", encoding="utf-8") as f:
+                content = f.read()
+            
+            # Card ID from filename
+            card_id_match = re.match(r"c(\d+)\.lua", lua_file)
+            if not card_id_match:
+                continue
+            card_id = int(card_id_match.group(1))
 
-    # Count copies for each card
-    counts = Counter(main_ids + extra_ids + side_ids)
-    card_docs = []
-    for doc in card_docs_raw:
-        doc_copy = doc.copy()
-        doc_copy["copies"] = counts.get(doc["id"], 1)
-        card_docs.append(doc_copy)
+            # Names
+            name_jp, name_en = extract_names(content)
 
-    # Split by section
-    main_cards = [c for c in card_docs if c["id"] in main_ids]
-    extra_cards = [c for c in card_docs if c["id"] in extra_ids]
-    side_cards = [c for c in card_docs if c["id"] in side_ids]
+            # Parse functions
+            functions_dict = parse_lua_functions(content)
 
-    # Display images in tabs
-    tabs = st.tabs(["Main Deck", "Extra Deck", "Side Deck"])
-    show_images(tabs[0], main_cards)
-    show_images(tabs[1], extra_cards)
-    show_images(tabs[2], side_cards)
+            # Build document
+            doc = {
+                "id": card_id,
+                "name_jp": name_jp,
+                "name_en": name_en,
+                "lua_raw": content,
+            }
+            doc.update(functions_dict)
 
-    # Build metadata table
-    rows = []
-    for card in card_docs:
-        row = {
-            "Card ID": card.get("id"),
-            "Name": card.get("name"),
-            "Type": card.get("type"),
-            "Subtype": card.get("subtype"),
-            "Attribute": card.get("attribute"),
-            "Level": card.get("level"),
-            "ATK": card.get("atk"),
-            "DEF": card.get("def"),
-            "Link": card.get("linkval"),
-            "Scale": card.get("scale"),
-            "Text": card.get("text"),
-            "Copies (Main)": main_ids.count(card["id"]),
-            "Copies (Extra)": extra_ids.count(card["id"]),
-            "Copies (Side)": side_ids.count(card["id"]),
-        }
-        rows.append(row)
+            # Upsert into MongoDB
+            collection.update_one(
+                {"id": card_id},
+                {"$set": doc},
+                upsert=True
+            )
+            updated += 1
 
-    df = pd.DataFrame(rows)
-
-    # Display collapsible metadata table
-    with st.expander("Show deck card info"):
-        st.dataframe(df, use_container_width=True)
-        csv = df.to_csv(index=False).encode("utf-8")
-        st.download_button("Download CSV", csv, "deck_info.csv", "text/csv")
-else:
-    st.info("Upload a .YDK file to analyze your deck after connecting to MongoDB.")
+        st.success(f"Database update complete. {updated} cards inserted/updated.")
