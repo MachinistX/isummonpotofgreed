@@ -1,321 +1,225 @@
 # app.py
-import os
-import re
-import subprocess
-import json
-from pathlib import Path
-from typing import Dict, Any, Tuple, List
-
 import streamlit as st
-from pymongo import MongoClient, errors
-from pymongo.collection import Collection
+import requests
+from collections import Counter
+import html
+from typing import Tuple, List, Dict
 
-st.set_page_config(layout="wide", page_title="ProjectIgnis → MongoDB Updater")
-st.title("Project Ignis CardScripts → MongoDB (Option C parser)")
+st.set_page_config(layout="wide", page_title="YDK Viewer — Images + Hover Info")
+st.title("YDK Viewer — Images from YGOPRODeck, Info on Hover")
 
-# -------------------------
-# MongoDB connection check
-# -------------------------
-mongo_conf = st.secrets["mongodb"]
-MONGO_URI = f"mongodb+srv://{mongo_conf['user']}:{mongo_conf['password']}@{mongo_conf['host']}/?appName={mongo_conf['appName']}"
-
-try:
-    client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000)
-    client.server_info()  # force connection attempt
-    db = client[mongo_conf["database"]]
-    collection: Collection = db[mongo_conf["collection"]]
-    st.success("✅ Connected to MongoDB successfully.")
-except errors.ServerSelectionTimeoutError:
-    st.error("❌ Cannot connect to MongoDB - server selection timeout. Check Atlas network access and secrets.")
-    st.stop()
-except Exception as e:
-    st.error(f"❌ MongoDB connection failed: {e}")
-    st.stop()
-
-# Ensure unique index on id
-try:
-    collection.create_index("id", unique=True)
-except Exception:
-    # ignore if index exists or if not permitted
-    pass
+YGOPRO_CARDINFO = "https://db.ygoprodeck.com/api/v7/cardinfo.php?id={}"
+YGOPRO_IMAGE = "https://images.ygoprodeck.com/images/cards/{}.jpg"  # large images; small variant exists if desired
 
 # -------------------------
-# Helpers: parsing & detection
+# Helpers
 # -------------------------
-
-FUNC_PATTERN = re.compile(r"function\s+s\.(\w+)\s*\((.*?)\)(.*?)end", re.DOTALL)  # crude, but works for many scripts
-
-# tokens / regexes for metadata detection
-RE_SETCOUNTLIMIT = re.compile(r"\.SetCountLimit\s*\(\s*([^\)]*)\)")
-RE_SETCOUNTLIMIT_HOPT = re.compile(r"\.SetCountLimit\s*\(\s*1\s*,\s*id\s*\)")  # common pattern
-RE_SETCOUNTLIMIT_DUEL = re.compile(r"SetCountLimit\([^,]*,[^,]*EFFECT_COUNT_CODE_DUEL")
-RE_LISTED_SERIES = re.compile(r"s\.listed_series\s*=\s*\{([^\}]*)\}")
-RE_LISTED_NAMES = re.compile(r"s\.listed_names\s*=\s*\{([^\}]*)\}")
-RE_CATEGORY = re.compile(r"CATEGORY_[A-Z_]+")
-RE_EVENT = re.compile(r"EVENT_[A-Z_]+")
-RE_EFFECT_FLAG = re.compile(r"EFFECT_FLAG_[A-Z_]+")
-RE_EFFECT_TYPE = re.compile(r"EFFECT_TYPE_[A-Z_]+")
-RE_SET_PROPERTY = re.compile(r"\.SetProperty\s*\(([^)]*)\)")
-RE_CISCODE = re.compile(r"IsCode\s*\(\s*(\d+)\s*\)")
-RE_INDESTRUCT = re.compile(r"EFFECT_INDESTRUCTABLE_EFFECT|EFFECT_INDESTRUCTABLE_BATTLE")
-RE_CANNOT_BE_TARGET = re.compile(r"EFFECT_CANNOT_BE_EFFECT_TARGET")
-RE_CANNOT_SPECIAL_SUMMON = re.compile(r"EFFECT_CANNOT_SPECIAL_SUMMON")
-RE_CUSTOM_ACTIVITY = re.compile(r"AddCustomActivityCounter|CustomActivityCounter")
-RE_CATEGORY_CALL = re.compile(r"Category\.\w+|CATEGORY_[A-Z_]+")
-
-# utility: simple param splitter
-def split_params(param_str: str) -> List[str]:
-    params = [p.strip() for p in param_str.split(",")] if param_str.strip() else []
-    return [p for p in params if p != ""]
-
-def extract_names(lua: str) -> Tuple[str, str]:
-    """
-    Try to extract JP/EN names from leading comment lines.
-    """
-    lines = lua.splitlines()
-    jp = en = ""
-    for line in lines:
-        s = line.strip()
-        if s.startswith("--"):
-            text = s[2:].strip()
-            if not jp:
-                jp = text
-            elif not en:
-                en = text
-                break
-        elif s == "":
-            # skip blank lines
+def parse_ydk(file_content: str) -> Tuple[List[int], List[int], List[int]]:
+    main, extra, side = [], [], []
+    section = None
+    for line in file_content.splitlines():
+        line = line.strip()
+        if line == "#main":
+            section = "main"
             continue
-        else:
-            # stop on first non-comment (names usually in first comments)
+        elif line == "#extra":
+            section = "extra"
             continue
-    return jp, en
+        elif line == "!side" or line == "#side":
+            section = "side"
+            continue
+        if line.startswith("#") or line == "":
+            continue
+        if line.isdigit():
+            cid = int(line)
+            if section == "main":
+                main.append(cid)
+            elif section == "extra":
+                extra.append(cid)
+            elif section == "side":
+                side.append(cid)
+    return main, extra, side
 
-def extract_functions(lua: str) -> Dict[str, Dict[str, Any]]:
+@st.cache_data(show_spinner=False)
+def fetch_card_info_ygopro(card_id: int) -> Dict:
+    """Fetch card info from YGOPRODeck. Cached between runs."""
+    try:
+        resp = requests.get(YGOPRO_CARDINFO.format(card_id), timeout=8)
+        resp.raise_for_status()
+    except Exception:
+        return {}
+    data = resp.json().get("data")
+    if not data:
+        return {}
+    return data[0]
+
+def make_card_tooltip_html(card_data: Dict) -> str:
+    """Return an HTML string for the hover popover with all card info (escaped)."""
+    if not card_data:
+        return "<div class='ci-tooltip-empty'>No data found on YGOPRODeck for this card.</div>"
+
+    # build fields
+    name = html.escape(card_data.get("name", "Unknown"))
+    ctype = html.escape(card_data.get("type", ""))
+    race = html.escape(card_data.get("race") or "")
+    archetype = html.escape(card_data.get("archetype") or "")
+    ban = card_data.get("banlist_info") or {}
+    ban_str = ", ".join(f"{k}:{v}" for k, v in ban.items()) if ban else ""
+    desc = html.escape(card_data.get("desc", "")).replace("\n", "<br/>")
+    atk = card_data.get("atk", "")
+    deff = card_data.get("def", "")
+    level = card_data.get("level", card_data.get("rank", ""))
+    attribute = html.escape(card_data.get("attribute") or "")
+    scale = card_data.get("scale", "")
+    linkval = card_data.get("linkval", "")
+    linkmarkers = card_data.get("linkmarkers") or []
+    linkmarkers_str = html.escape(", ".join(linkmarkers))
+
+    # sets & prices
+    sets = card_data.get("card_sets") or []
+    sets_html = ""
+    if sets:
+        for s in sets[:3]:
+            sets_html += f"<div class='ci-set'>{html.escape(s.get('set_name',''))} ({html.escape(s.get('set_code',''))}) - {html.escape(s.get('set_rarity',''))}</div>"
+
+    prices = card_data.get("card_prices") or []
+    prices_html = ""
+    if prices:
+        # take first price object and show some keys
+        p = prices[0]
+        for k, v in p.items():
+            prices_html += f"<div class='ci-price'>{html.escape(k)}: {html.escape(str(v))}</div>"
+
+    # compose HTML
+    html_parts = [
+        "<div class='ci-tooltip'>",
+        f"<h3 style='margin:4px 0'>{name}</h3>",
+        f"<div><strong>Type:</strong> {ctype} / {race}</div>",
+        f"<div><strong>Archetype:</strong> {archetype}</div>",
+        f"<div><strong>Attribute/Level:</strong> {attribute} / {level}</div>",
+        f"<div><strong>ATK / DEF:</strong> {atk or '-'} / {deff or '-'}</div>",
+    ]
+
+    if scale:
+        html_parts.append(f"<div><strong>Pendulum Scale:</strong> {scale}</div>")
+    if linkval:
+        html_parts.append(f"<div><strong>Link Rating:</strong> {linkval} — Arrows: {linkmarkers_str}</div>")
+
+    if ban_str:
+        html_parts.append(f"<div><strong>Banlist:</strong> {html.escape(ban_str)}</div>")
+
+    if sets_html:
+        html_parts.append("<div><strong>Sets:</strong>")
+        html_parts.append(sets_html)
+        html_parts.append("</div>")
+
+    if prices_html:
+        html_parts.append("<div><strong>Sample prices:</strong>")
+        html_parts.append(prices_html)
+        html_parts.append("</div>")
+
+    if desc:
+        html_parts.append("<div style='margin-top:6px;'><strong>Card text:</strong><div style='margin-top:4px'>" + desc + "</div></div>")
+
+    html_parts.append("</div>")
+    return "".join(html_parts)
+
+def make_card_html_card(card_id: int, card_data: Dict, width_px: int = 100) -> str:
     """
-    Extract named functions s.<name>(params) ... end into a dict of {name: {parameters: [], body: "..."}}
+    Return an HTML block for a single card image with a CSS hover popover.
+    width_px controls image width; height preserved by browser.
     """
-    result = {}
-    for m in FUNC_PATTERN.finditer(lua):
-        fname = m.group(1)
-        raw_params = m.group(2)
-        body = m.group(3).strip()
-        result[fname] = {
-            "parameters": split_params(raw_params),
-            "body": body
-        }
-    return result
-
-def detect_meta(lua: str) -> Dict[str, Any]:
+    img_url = YGOPRO_IMAGE.format(card_id)
+    safe_img = html.escape(img_url)
+    tooltip_html = make_card_tooltip_html(card_data)
+    # outer container with tooltip shown on hover
+    # use data-tooltip for simpler escaping, but we place the tooltip content in a hidden div to allow rich HTML
+    html_block = f"""
+    <div class="ci-card">
+      <img src="{safe_img}" width="{width_px}" alt="{html.escape(str(card_data.get('name','')))}" loading="lazy"/>
+      <div class="ci-popup">
+        {tooltip_html}
+      </div>
+    </div>
     """
-    Find relevant metadata from Lua script using regex heuristics.
-    Returns a dictionary with many boolean flags and lists.
-    """
-    meta: Dict[str, Any] = {}
+    return html_block
 
-    # HOPT / OPT / Once per duel
-    meta["has_SetCountLimit"] = bool(RE_SETCOUNTLIMIT.search(lua))
-    meta["has_HOPT_like"] = bool(RE_SETCOUNTLIMIT_HOPT.search(lua)) or bool(re.search(r"SetCountLimit\([^,]*\)\s*--\s*once", lua, re.IGNORECASE))
-    meta["has_once_per_duel"] = bool(RE_SETCOUNTLIMIT_DUEL.search(lua) or re.search(r"EFFECT_COUNT_CODE_DUEL", lua))
-
-    # Listed series/names
-    ss = RE_LISTED_SERIES.search(lua)
-    if ss:
-        series_raw = ss.group(1)
-        # split tokens by comma
-        series = [s.strip() for s in series_raw.split(",") if s.strip()]
-        meta["listed_series"] = series
-    else:
-        meta["listed_series"] = []
-
-    sn = RE_LISTED_NAMES.search(lua)
-    if sn:
-        names_raw = sn.group(1)
-        names = [int(n.strip()) for n in re.findall(r"\d+", names_raw)]
-        meta["listed_names"] = names
-    else:
-        meta["listed_names"] = []
-
-    # Categories & events
-    meta["categories"] = list(set(RE_CATEGORY.findall(lua)))
-    meta["events"] = list(set(RE_EVENT.findall(lua)))
-    meta["effect_flags"] = list(set(RE_EFFECT_FLAG.findall(lua)))
-    meta["effect_types"] = list(set(RE_EFFECT_TYPE.findall(lua)))
-
-    # Targeting / property
-    meta["has_target_property"] = bool(RE_SET_PROPERTY.search(lua) or "EFFECT_FLAG_CARD_TARGET" in lua)
-    meta["has_indestructible"] = bool(RE_INDESTRUCT.search(lua))
-    meta["has_cannot_be_target"] = bool(RE_CANNOT_BE_TARGET.search(lua))
-    meta["has_cannot_special_summon"] = bool(RE_CANNOT_SPECIAL_SUMMON.search(lua))
-
-    # Custom activity counters and locks
-    meta["has_custom_activity_counter"] = bool(RE_CUSTOM_ACTIVITY.search(lua))
-
-    # Named codes
-    codes = [int(x) for x in re.findall(r"IsCode\s*\(\s*(\d+)\s*\)", lua)]
-    meta["referenced_codes"] = list(set(codes))
-
-    # Basic category calls
-    meta["category_calls"] = list(set(RE_CATEGORY_CALL.findall(lua)))
-
-    return meta
+# CSS for grid and tooltip
+TOOLTIP_CSS = """
+<style>
+.ci-grid { display:flex; flex-wrap:wrap; gap:8px; }
+.ci-section { margin-bottom:18px; }
+.ci-card { position: relative; display:inline-block; }
+.ci-card img { border-radius:6px; box-shadow: 0 2px 6px rgba(0,0,0,0.25); }
+.ci-popup {
+  visibility: hidden;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+  position: absolute;
+  z-index: 9999;
+  top: -10px;
+  left: 110%;
+  width: 420px;
+  max-height: 400px;
+  overflow: auto;
+  background: white;
+  border: 1px solid rgba(0,0,0,0.12);
+  padding: 10px;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+  border-radius: 8px;
+}
+.ci-card:hover .ci-popup { visibility: visible; opacity: 1; }
+/* small screens: drop tooltip under image */
+@media(max-width:800px){
+  .ci-popup { left: 0; top: 110%; width: 90vw; }
+}
+.ci-tooltip h3 { margin:0; font-size:16px; }
+.ci-tooltip div { font-size:13px; margin-top:4px; }
+.ci-set, .ci-price { font-size:12px; color: #444; margin-top:4px; }
+</style>
+"""
 
 # -------------------------
-# UI: repo path and update button
+# UI: upload
 # -------------------------
-st.markdown("**Repo source (default set to Project Ignis CardScripts official):**")
-default_repo_url = "https://github.com/ProjectIgnis/CardScripts.git"
-repo_path_input = st.text_input("Local path or GitHub repo URL (cloned locally if URL):", value=default_repo_url)
+st.markdown("Upload a `.ydk` deck file (EDOPro / DuelingBook / YGOPro format).")
+uploaded = st.file_uploader("Upload .ydk", type=["ydk"])
 
-col1, col2 = st.columns([1, 3])
-with col1:
-    if st.button("Update Database from Project Ignis"):
-        # handle clone/pull
-        local_repo_path = "./CardScripts"
-        try:
-            if repo_path_input.startswith("http"):
-                if not os.path.isdir(local_repo_path):
-                    st.info("Cloning Project Ignis CardScripts (this may take a while)...")
-                    subprocess.run(["git", "clone", "--depth", "1", repo_path_input, local_repo_path], check=True)
-                else:
-                    st.info("Repository already cloned. Pulling latest changes...")
-                    # perform git pull
-                    try:
-                        subprocess.run(["git", "-C", local_repo_path, "pull"], check=True)
-                    except subprocess.CalledProcessError:
-                        st.warning("`git pull` failed; repository may be in a dirty state. Continuing with current files.")
-            else:
-                local_repo_path = repo_path_input  # treat as local path
+if uploaded:
+    content = uploaded.getvalue().decode("utf-8", errors="ignore")
+    main_ids, extra_ids, side_ids = parse_ydk(content)
+    if not (main_ids or extra_ids or side_ids):
+        st.error("No cards found in the YDK file.")
+    else:
+        st.success(f"Parsed YDK: Main={len(main_ids)} Extra={len(extra_ids)} Side={len(side_ids)}")
+        # fetch card data for unique ids
+        all_ids = list(dict.fromkeys(main_ids + extra_ids + side_ids))  # preserve order, unique
+        with st.spinner("Fetching card data from YGOPRODeck..."):
+            card_cache = {}
+            for cid in all_ids:
+                card_cache[cid] = fetch_card_info_ygopro(cid)
 
-            official_folder = os.path.join(local_repo_path, "official")
-            if not os.path.isdir(official_folder):
-                st.error(f"official/ folder not found at: {official_folder}")
-            else:
-                lua_files = [f for f in os.listdir(official_folder) if f.endswith(".lua")]
-                total = len(lua_files)
-                if total == 0:
-                    st.warning("No .lua files found in official/ folder.")
-                else:
-                    st.write(f"Found {total} .lua scripts. Starting processing...")
-                    progress = st.progress(0.0)
-                    status = st.empty()
-                    log_box = st.empty()
-                    inserted = updated = skipped = errors = 0
-                    log_lines: List[str] = []
+        # render sections
+        st.markdown(TOOLTIP_CSS, unsafe_allow_html=True)
 
-                    for idx, fname in enumerate(sorted(lua_files), start=1):
-                        fpath = os.path.join(official_folder, fname)
-                        try:
-                            with open(fpath, "r", encoding="utf-8") as fh:
-                                lua = fh.read()
-                        except Exception as e:
-                            errors += 1
-                            log_lines.append(f"ERROR reading {fname}: {e}")
-                            # update UI and continue
-                            progress.progress(idx / total)
-                            status.text(f"Error reading {fname} ({idx}/{total})")
-                            log_box.text("\n".join(log_lines[-10:]))
-                            continue
+        def render_section(title: str, ids: List[int]):
+            st.markdown(f"### {title} — {len(ids)} cards")
+            if not ids:
+                st.write("_No cards in this section._")
+                return
+            # create HTML grid
+            html_items = []
+            for cid in ids:
+                card_data = card_cache.get(cid, {})
+                html_items.append(make_card_html_card(cid, card_data, width_px=100))
+            grid_html = '<div class="ci-grid">' + "\n".join(html_items) + "</div>"
+            st.markdown(grid_html, unsafe_allow_html=True)
 
-                        # parse id from filename
-                        m = re.match(r"c(\d+)\.lua", fname)
-                        if not m:
-                            skipped += 1
-                            log_lines.append(f"SKIP (no id) {fname}")
-                            progress.progress(idx / total)
-                            status.text(f"Skipped {fname} ({idx}/{total})")
-                            log_box.text("\n".join(log_lines[-10:]))
-                            continue
-                        card_id = int(m.group(1))
+        render_section("Main Deck", main_ids)
+        render_section("Extra Deck", extra_ids)
+        render_section("Side Deck", side_ids)
 
-                        # extract names, functions, meta
-                        name_jp, name_en = extract_names(lua)
-                        functions = extract_functions(lua)
-                        meta = detect_meta(lua)
-
-                        # build candidate fields to update
-                        candidate_doc = {
-                            "id": card_id,
-                            "name_jp": name_jp,
-                            "name_en": name_en,
-                            "lua_raw": lua,
-                            "functions": functions,
-                            "meta": meta
-                        }
-
-                        # incremental update logic
-                        try:
-                            existing = collection.find_one({"id": card_id})
-                        except Exception as e:
-                            errors += 1
-                            log_lines.append(f"ERROR DB find {card_id}: {e}")
-                            progress.progress(idx / total)
-                            status.text(f"DB error on {card_id} ({idx}/{total})")
-                            log_box.text("\n".join(log_lines[-10:]))
-                            continue
-
-                        update_fields = {}
-                        is_new = existing is None
-
-                        # Compare top-level simple fields
-                        for key in ("name_jp", "name_en", "lua_raw"):
-                            val = candidate_doc.get(key)
-                            if is_new or existing.get(key) != val:
-                                update_fields[key] = val
-
-                        # Compare functions: add/replace only if different
-                        existing_funcs = existing.get("functions", {}) if existing else {}
-                        for fname, fval in functions.items():
-                            if existing_funcs.get(fname) != fval:
-                                update_fields.setdefault("functions", {})
-                                update_fields["functions"][fname] = fval
-
-                        # Compare meta: shallow compare; replace if different
-                        existing_meta = existing.get("meta", {}) if existing else {}
-                        if existing_meta != meta:
-                            update_fields["meta"] = meta
-
-                        # If there are updates, perform $set (upsert if new)
-                        if update_fields:
-                            try:
-                                collection.update_one({"id": card_id}, {"$set": update_fields}, upsert=True)
-                                if is_new:
-                                    inserted += 1
-                                    log_lines.append(f"INSERTED {card_id} ({fname})")
-                                else:
-                                    updated += 1
-                                    log_lines.append(f"UPDATED {card_id} ({fname})")
-                            except Exception as e:
-                                errors += 1
-                                log_lines.append(f"ERROR DB upsert {card_id}: {e}")
-                        else:
-                            skipped += 1
-                            log_lines.append(f"SKIPPED (no changes) {card_id}")
-
-                        # update progress UI
-                        progress.progress(idx / total)
-                        status.text(f"Processing: {fname} ({idx}/{total})")
-                        log_box.text("\n".join(log_lines[-10:]))
-
-                    # finished
-                    status.text("Completed processing all files.")
-                    st.success(f"Done — inserted: {inserted}, updated: {updated}, skipped: {skipped}, errors: {errors}")
-                    # show a bit of log
-                    st.subheader("Recent log entries")
-                    st.text("\n".join(log_lines[-50:]))
-        except subprocess.CalledProcessError as e:
-            st.error(f"Git command failed: {e}")
-        except Exception as e:
-            st.error(f"Unexpected error: {e}")
-
-with col2:
-    st.markdown(
-        """
-        **Notes & behavior**
-        - This updater stores **raw Lua** and extracts functions under `functions.<name>` and heuristics under `meta`.
-        - Updates are **incremental**: only changed fields are `$set`. Existing fields not touched are preserved.
-        - The script **creates a unique index on `id`** to avoid duplicates.
-        - If you clone from GitHub, the app will `git clone` (once) and will `git pull` on subsequent runs.
-        - You can change the repo path to a local clone if you prefer.
-        """
-    )
+        st.markdown("---")
+        st.info("Hover a card image to see full card information fetched from YGOPRODeck.")
+else:
+    st.info("Waiting for a .YDK file upload.")
