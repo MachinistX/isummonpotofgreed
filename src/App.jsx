@@ -4,7 +4,7 @@ import { CardSearch } from './components/DeckBuilder/CardSearch';
 import { DeckEditor } from './components/DeckBuilder/DeckEditor';
 import { HandTester } from './components/Simulator/HandTester';
 import { BatchSim } from './components/Simulator/BatchSim';
-import { fetchCardDatabase, getCardById, getCardsByIds } from './services/ygoproapi';
+import { getCardById, getCardsByIds } from './services/ygoproapi';
 import { generateYDK, parseYDK } from './utils/ydk';
 import { Download, Upload, Loader2 } from 'lucide-react';
 import { Button } from './components/ui/Button';
@@ -67,9 +67,7 @@ function App() {
 
   // Load API data on mount
   useEffect(() => {
-    fetchCardDatabase().then(() => {
-      setLoading(false);
-    });
+    setLoading(false); // No longer need to load all cards
 
     // Hash routing listener
     const handleHashChange = () => {
