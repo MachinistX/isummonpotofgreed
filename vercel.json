@@ -1,20 +1,6 @@
 {
-    "crons": [
-        {
-            "path": "/api/cron-daily-sync",
-            "schedule": "0 2 * * *"
-        }
-    ],
     "functions": {
         "api/**/*.js": {
-            "memory": 1024,
-            "maxDuration": 10
-        },
-        "api/sync-cards.js": {
-            "memory": 1024,
-            "maxDuration": 60
-        },
-        "api/cron-daily-sync.js": {
             "memory": 1024,
             "maxDuration": 60
         }
