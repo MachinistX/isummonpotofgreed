@@ -1,16 +1,82 @@
-# React + Vite
+# I Summon Pot of Greed! 🎴
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A comprehensive Yu-Gi-Oh! deck analysis and combo simulator built with React + Vite.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+### 🃏 Deck Builder
+- Interactive card search using YGOProDeck API
+- Drag & drop deck management (Main, Extra, Side deck)
+- Real-time deck statistics and ratios
+- Import/Export .ydk files
 
-## React Compiler
+### 🎯 Combo Builder
+- Define combo requirements with OR logic (Input Groups)
+- Specify resulting board states (Outputs)
+- **Vulnerability Analysis**: Define threats and protective answers
+- **Brick Detection**: Mark "Garnet" cards that ruin combos
+- Combo validation against current deck
+- Import/Export combo definitions (JSON)
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+### 🎲 Hand Simulator
+- Draw and analyze 5-card opening hands
+- Automatic combo detection
+- Dead card identification (duplicate HOPTs)
+- Hand trap detection (PSCT-based)
+- Vulnerability checking (threat/answer analysis)
+- Visual indicators for:
+  - Dead cards (Duplicate HOPT)
+  - Hand traps (HT pill)
+  - Garnets (GAR pill)
+  - Bricked combos
 
-## Expanding the ESLint configuration
+### 📊 Batch Simulation (10,000 iterations)
+- **Score Cards**:
+  - Average playable hand size
+  - Playable hand percentage
+  - "Gas" percentage (all cards playable)
+  - Average combo options
+- **Vulnerability Ranking**: Top 4 most common threats
+- **Combo Probability Table**: Success rates and brick percentages
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## Tech Stack
+
+- **Frontend**: React 18 + Vite
+- **Styling**: Tailwind CSS
+- **Icons**: Lucide React
+- **API**: YGOProDeck API
+
+## Getting Started
+
+```bash
+# Install dependencies
+npm install
+
+# Run development server
+npm run dev
+
+# Build for production
+npm run build
+```
+
+## Features in Detail
+
+### Hand Trap Detection
+Uses PSCT (Problem-Solving Card Text) parsing to accurately identify:
+- Monster Quick Effects that activate from hand
+- Trap cards with hand activation clauses
+- Properly handles multi-effect cards
+
+### Combo Brick Logic
+A combo is "bricked" when ANY copy of a defined brick card is drawn (strict "Garnet" logic).
+
+### Vulnerability System
+Define threats (opponent's cards) and answers (your protection) to analyze how often your combos are exposed.
+
+## License
+
+MIT
+
+---
+
+Built with ❤️ for the Yu-Gi-Oh! community
