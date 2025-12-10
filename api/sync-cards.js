@@ -6,9 +6,11 @@ export default async function handler(req, res) {
         return res.status(405).json({ error: 'Method not allowed' });
     }
 
-    // Basic auth check (optional - you can add API key here)
+    // Basic auth check
     const authHeader = req.headers.authorization;
-    if (authHeader !== `Bearer ${process.env.SYNC_API_KEY || 'your-secret-key'}`) {
+    const apiKey = process.env.SYNC_API_KEY || 'your-secret-key';
+
+    if (authHeader !== `Bearer ${apiKey}`) {
         return res.status(401).json({ error: 'Unauthorized' });
     }
 
@@ -16,8 +18,13 @@ export default async function handler(req, res) {
         const cardsCollection = await getCardsCollection();
         const metadataCollection = await getMetadataCollection();
 
+        // Get last sync info
+        const metadata = await metadataCollection.findOne({ _id: 'sync_info' });
+        const isInitialSync = !metadata || !metadata.last_sync;
+
+        console.log(isInitialSync ? 'Starting initial sync...' : 'Starting update sync...');
+
         // Fetch all cards from YGOProDeck API
-        console.log('Fetching cards from YGOProDeck API...');
         const response = await fetch('https://db.ygoprodeck.com/api/v7/cardinfo.php');
 
         if (!response.ok) {
@@ -27,25 +34,57 @@ export default async function handler(req, res) {
         const data = await response.json();
         const cards = data.data;
 
-        console.log(`Fetched ${cards.length} cards`);
+        console.log(`Fetched ${cards.length} cards from API`);
 
-        // Prepare bulk operations for upsert
-        const bulkOps = cards.map(card => ({
-            updateOne: {
-                filter: { id: card.id },
-                update: {
-                    $set: {
-                        ...card,
-                        last_updated: new Date()
+        let inserted = 0;
+        let updated = 0;
+
+        if (isInitialSync) {
+            // Initial sync: bulk upsert all cards
+            console.log('Performing bulk upsert for initial sync...');
+            const bulkOps = cards.map(card => ({
+                updateOne: {
+                    filter: { id: card.id },
+                    update: {
+                        $set: {
+                            ...card,
+                            last_updated: new Date()
+                        }
+                    },
+                    upsert: true
+                }
+            }));
+
+            const result = await cardsCollection.bulkWrite(bulkOps);
+            inserted = result.upsertedCount;
+            updated = result.modifiedCount;
+        } else {
+            // Update sync: only update new or missing cards
+            console.log('Checking for new cards...');
+            const existingIds = new Set(
+                (await cardsCollection.find({}, { projection: { id: 1 } }).toArray())
+                    .map(doc => doc.id)
+            );
+
+            const newCards = cards.filter(card => !existingIds.has(card.id));
+
+            if (newCards.length > 0) {
+                console.log(`Found ${newCards.length} new cards, inserting...`);
+                const bulkOps = newCards.map(card => ({
+                    insertOne: {
+                        document: {
+                            ...card,
+                            last_updated: new Date()
+                        }
                     }
-                },
-                upsert: true
-            }
-        }));
+                }));
 
-        // Execute bulk write
-        console.log('Writing to MongoDB...');
-        const result = await cardsCollection.bulkWrite(bulkOps);
+                const result = await cardsCollection.bulkWrite(bulkOps);
+                inserted = result.insertedCount;
+            } else {
+                console.log('No new cards found');
+            }
+        }
 
         // Update metadata
         await metadataCollection.updateOne(
@@ -54,7 +93,8 @@ export default async function handler(req, res) {
                 $set: {
                     last_sync: new Date(),
                     card_count: cards.length,
-                    api_version: 'v7'
+                    api_version: 'v7',
+                    sync_type: isInitialSync ? 'initial' : 'update'
                 }
             },
             { upsert: true }
@@ -64,11 +104,11 @@ export default async function handler(req, res) {
 
         res.status(200).json({
             success: true,
+            sync_type: isInitialSync ? 'initial' : 'update',
             stats: {
-                total_cards: cards.length,
-                inserted: result.upsertedCount,
-                updated: result.modifiedCount,
-                matched: result.matchedCount,
+                total_cards_in_api: cards.length,
+                inserted: inserted,
+                updated: updated,
                 timestamp: new Date().toISOString()
             }
         });

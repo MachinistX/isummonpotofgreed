@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Database Sync - Admin</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #0f172a;
+            color: #e2e8f0;
+        }
+        .container {
+            background: #1e293b;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+        h1 {
+            color: #60a5fa;
+            border-bottom: 2px solid #3b82f6;
+            padding-bottom: 15px;
+        }
+        .form-group {
+            margin: 20px 0;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #94a3b8;
+            font-weight: 500;
+        }
+        input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #475569;
+            border-radius: 6px;
+            background: #0f172a;
+            color: #e2e8f0;
+            font-size: 14px;
+        }
+        button {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            margin-top: 10px;
+            transition: background 0.2s;
+        }
+        button:hover:not(:disabled) {
+            background: #2563eb;
+        }
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        #status {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 6px;
+            display: none;
+        }
+        #status.success {
+            background: #065f46;
+            border: 1px solid #10b981;
+            color: #d1fae5;
+        }
+        #status.error {
+            background: #7f1d1d;
+            border: 1px solid #ef4444;
+            color: #fecaca;
+        }
+        #status.loading {
+            background: #1e3a8a;
+            border: 1px solid #3b82f6;
+            color: #dbeafe;
+        }
+        pre {
+            background: #0f172a;
+            padding: 15px;
+            border-radius: 6px;
+            overflow-x: auto;
+            font-size: 12px;
+            border: 1px solid #334155;
+        }
+        .info {
+            background: #1e3a8a;
+            border: 1px solid #3b82f6;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🗄️ Database Sync Admin</h1>
+        
+        <div class="info">
+            <strong>⚠️ Important:</strong> This will sync all YGOProDeck cards to your MongoDB database.
+            <ul>
+                <li><strong>Initial Sync:</strong> Downloads ~13,000 cards (may take 30-60 seconds)</li>
+                <li><strong>Update Sync:</strong> Only adds new cards not in database</li>
+            </ul>
+        </div>
+
+        <div class="form-group">
+            <label for="apiKey">API Key (SYNC_API_KEY from environment):</label>
+            <input type="password" id="apiKey" placeholder="your-secret-key">
+        </div>
+
+        <button id="syncBtn" onclick="runSync()">🔄 Start Sync</button>
+
+        <div id="status"></div>
+    </div>
+
+    <script>
+        async function runSync() {
+            const apiKey = document.getElementById('apiKey').value;
+            const statusDiv = document.getElementById('status');
+            const syncBtn = document.getElementById('syncBtn');
+
+            if (!apiKey) {
+                statusDiv.className = 'error';
+                statusDiv.style.display = 'block';
+                statusDiv.innerHTML = '❌ Please enter your API key';
+                return;
+            }
+
+            statusDiv.className = 'loading';
+            statusDiv.style.display = 'block';
+            statusDiv.innerHTML = '⏳ Syncing... This may take up to 60 seconds...';
+            syncBtn.disabled = true;
+
+            try {
+                const response = await fetch('/api/sync-cards', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${apiKey}`
+                    }
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    statusDiv.className = 'success';
+                    statusDiv.innerHTML = `
+                        <strong>✅ Sync completed successfully!</strong>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `;
+                } else {
+                    statusDiv.className = 'error';
+                    statusDiv.innerHTML = `
+                        <strong>❌ Sync failed</strong>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `;
+                }
+            } catch (error) {
+                statusDiv.className = 'error';
+                statusDiv.innerHTML = `
+                    <strong>❌ Network error</strong>
+                    <pre>${error.message}</pre>
+                `;
+            } finally {
+                syncBtn.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>
