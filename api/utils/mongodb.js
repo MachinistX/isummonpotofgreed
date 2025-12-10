@@ -10,10 +10,8 @@ export async function connectToDatabase() {
         return { client: cachedClient, db: cachedDb };
     }
 
-    const client = await MongoClient.connect(uri, {
-        useNewUrlParser: true,
-        useUnifiedTopology: true,
-    });
+    // MongoDB 7.0+ doesn't need useNewUrlParser and useUnifiedTopology options
+    const client = await MongoClient.connect(uri);
 
     const db = client.db(process.env.MONGODB_DATABASE || 'card_information');
 
