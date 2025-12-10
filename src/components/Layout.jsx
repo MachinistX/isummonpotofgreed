@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Hammer, BarChart, Settings, Calculator, Network } from 'lucide-react';
+import { Coffee, BarChart, Calculator, Network } from 'lucide-react';
 
 export const Layout = ({ children }) => {
     const [activeTab, setActiveTab] = useState('builder'); // builder, simulator, settings, combos
@@ -16,17 +16,17 @@ export const Layout = ({ children }) => {
                 <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                         <div className="bg-gradient-to-tr from-blue-600 to-cyan-500 p-2 rounded-lg">
-                            <Hammer className="w-6 h-6 text-white" />
+                            <Coffee className="w-6 h-6 text-white" />
                         </div>
                         <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-cyan-300">
-                            DeckMaster
+                            isummonpotofgreed
                         </span>
                     </div>
 
                     <div className="flex items-center gap-1 bg-slate-800/50 p-1 rounded-xl border border-white/5">
                         <NavButton
                             active={window.location.hash === '#builder' || window.location.hash === ''}
-                            icon={<Hammer className="w-4 h-4" />}
+                            icon={<Coffee className="w-4 h-4" />}
                             label="Deck Builder"
                             onClick={() => window.location.hash = 'builder'}
                         />
@@ -51,12 +51,7 @@ export const Layout = ({ children }) => {
                     </div>
 
 
-                    <div className="w-10">
-                        {/* Placeholder for user/settings */}
-                        <button className="p-2 hover:bg-slate-800 rounded-full transition-colors">
-                            <Settings className="w-5 h-5 text-slate-400" />
-                        </button>
-                    </div>
+                    {/* Settings button removed */}
                 </div>
             </nav>
 
