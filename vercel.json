@@ -1,0 +1,12 @@
+{
+    "functions": {
+        "api/**/*.js": {
+            "memory": 1024,
+            "maxDuration": 10
+        },
+        "api/sync-cards.js": {
+            "memory": 3008,
+            "maxDuration": 60
+        }
+    }
+}

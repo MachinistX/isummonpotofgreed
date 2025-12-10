@@ -1,4 +1,5 @@
-const API_BASE_URL = 'https://db.ygoprodeck.com/api/v7/cardinfo.php';
+// Use local MongoDB API instead of direct YGOProDeck API
+const API_BASE_URL = '/api/cards';
 
 let cardDatabase = [];
 let databaseLoaded = false;
@@ -7,16 +8,17 @@ export const fetchCardDatabase = async () => {
     if (databaseLoaded) return cardDatabase;
 
     try {
-        const response = await fetch(`${API_BASE_URL}?misc=yes`); // misc=yes gives us extra info like if it has specific formats
+        // Fetch all cards from our MongoDB API
+        const response = await fetch(API_BASE_URL);
         const data = await response.json();
 
         if (data.data) {
             cardDatabase = data.data;
             databaseLoaded = true;
-            console.log(`Loaded ${cardDatabase.length} cards from API.`);
+            console.log(`Loaded ${cardDatabase.length} cards from database.`);
             return cardDatabase;
         } else {
-            console.error("No data received from YGOPRODeck API");
+            console.error("No data received from database API");
             return [];
         }
     } catch (error) {
@@ -53,4 +55,16 @@ export const searchCards = (query, filters = {}) => {
 export const getCardById = (id) => {
     // ID checking needs to be loose (string/number)
     return cardDatabase.find(c => c.id == id);
+};
+
+// New function: Fetch cards by multiple IDs (for YDK import)
+export const getCardsByIds = async (ids) => {
+    try {
+        const response = await fetch(`${API_BASE_URL}?id=${ids.join(',')}`);
+        const data = await response.json();
+        return data.data || [];
+    } catch (error) {
+        console.error("Failed to fetch cards by IDs:", error);
+        return [];
+    }
 };
