@@ -77,13 +77,11 @@ export default async function handler(req, res) {
         }
 
         // Execute query
+        console.log('MongoDB query:', JSON.stringify(query));
         const cards = await cardsCollection.find(query, options).toArray();
+        console.log(`Found ${cards.length} cards`);
 
-        // Return in YGOProDeck API format
-        if (cards.length === 0) {
-            return res.status(404).json({ error: 'No cards found matching criteria' });
-        }
-
+        // Return in YGOProDeck API format (always return data array, even if empty)
         res.status(200).json({
             data: cards.map(card => {
                 // Remove MongoDB-specific fields
