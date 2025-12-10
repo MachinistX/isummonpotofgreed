@@ -4,7 +4,7 @@ import { CardSearch } from './components/DeckBuilder/CardSearch';
 import { DeckEditor } from './components/DeckBuilder/DeckEditor';
 import { HandTester } from './components/Simulator/HandTester';
 import { BatchSim } from './components/Simulator/BatchSim';
-import { fetchCardDatabase, getCardById } from './services/ygoproapi';
+import { fetchCardDatabase, getCardById, getCardsByIds } from './services/ygoproapi';
 import { generateYDK, parseYDK } from './utils/ydk';
 import { Download, Upload, Loader2 } from 'lucide-react';
 import { Button } from './components/ui/Button';
@@ -171,10 +171,20 @@ function App() {
                         // Import logic
                         const parsed = parseYDK(text);
 
+                        // Collect all unique IDs from the deck
+                        const allIds = [...new Set([...parsed.main, ...parsed.extra, ...parsed.side])];
+
+                        // Fetch cards from database by IDs
+                        console.log(`Fetching ${allIds.length} cards from database...`);
+                        const fetchedCards = await getCardsByIds(allIds);
+
+                        // Create a map for quick lookup
+                        const cardMap = new Map(fetchedCards.map(card => [card.id, card]));
+
                         // Helper to map IDs to objects with unique UIDs
                         const mapIds = (ids) => {
                           return ids.map(id => {
-                            const card = getCardById(id);
+                            const card = cardMap.get(id);
                             if (card) {
                               return { ...card, uid: crypto.randomUUID() };
                             }
@@ -187,6 +197,8 @@ function App() {
                           extra: mapIds(parsed.extra),
                           side: mapIds(parsed.side)
                         });
+
+                        console.log('Deck loaded successfully!');
                       } catch (err) {
                         console.error(err);
                         alert("Failed to parse deck file.");
