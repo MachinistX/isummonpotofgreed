@@ -2,10 +2,20 @@ import { MongoClient } from 'mongodb';
 import https from 'https';
 
 // MongoDB connection string from environment variables
-const MONGODB_USER = process.env.MONGODB_USER || 'petarjovanchevic_db_user';
-const MONGODB_PASSWORD = process.env.MONGODB_PASSWORD || 'u9UYQWJCIQ1jplL6';
-const MONGODB_HOST = process.env.MONGODB_HOST || 'isummonpotofgreed.yu8phoe.mongodb.net';
+// Ensure these are set in your .env.local file or environment
+const MONGODB_USER = process.env.MONGODB_USER;
+const MONGODB_PASSWORD = process.env.MONGODB_PASSWORD;
+const MONGODB_HOST = process.env.MONGODB_HOST;
 const MONGODB_APPNAME = process.env.MONGODB_APPNAME || 'isummonpotofgreed';
+
+if (!MONGODB_USER || !MONGODB_PASSWORD || !MONGODB_HOST) {
+    console.error('❌ Missing required environment variables:');
+    if (!MONGODB_USER) console.error('  - MONGODB_USER');
+    if (!MONGODB_PASSWORD) console.error('  - MONGODB_PASSWORD');
+    if (!MONGODB_HOST) console.error('  - MONGODB_HOST');
+    console.error('\nPlease set these in your .env.local file or environment.');
+    process.exit(1);
+}
 
 const MONGODB_URI = `mongodb+srv://${MONGODB_USER}:${MONGODB_PASSWORD}@${MONGODB_HOST}/?retryWrites=true&w=majority&appName=${MONGODB_APPNAME}`;
 const DATABASE_NAME = process.env.MONGODB_DATABASE || 'card_information';
