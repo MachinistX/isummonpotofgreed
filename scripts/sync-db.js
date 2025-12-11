@@ -1,10 +1,15 @@
 import { MongoClient } from 'mongodb';
 import https from 'https';
 
-// MongoDB connection string
-const MONGODB_URI = `mongodb+srv://petarjovanchevic_db_user:u9UYQWJCIQ1jplL6@isummonpotofgreed.yu8phoe.mongodb.net/?retryWrites=true&w=majority&appName=isummonpotofgreed`;
-const DATABASE_NAME = 'card_information';
-const COLLECTION_NAME = 'ygoprodeck_db';
+// MongoDB connection string from environment variables
+const MONGODB_USER = process.env.MONGODB_USER || 'petarjovanchevic_db_user';
+const MONGODB_PASSWORD = process.env.MONGODB_PASSWORD || 'u9UYQWJCIQ1jplL6';
+const MONGODB_HOST = process.env.MONGODB_HOST || 'isummonpotofgreed.yu8phoe.mongodb.net';
+const MONGODB_APPNAME = process.env.MONGODB_APPNAME || 'isummonpotofgreed';
+
+const MONGODB_URI = `mongodb+srv://${MONGODB_USER}:${MONGODB_PASSWORD}@${MONGODB_HOST}/?retryWrites=true&w=majority&appName=${MONGODB_APPNAME}`;
+const DATABASE_NAME = process.env.MONGODB_DATABASE || 'card_information';
+const COLLECTION_NAME = process.env.MONGODB_COLLECTION || 'ygoprodeck_db';
 
 // Helper function to fetch data using https module
 function fetchJson(url) {
