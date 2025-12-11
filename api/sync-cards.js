@@ -6,9 +6,9 @@ export default async function handler(req, res) {
         return res.status(405).json({ error: 'Method not allowed' });
     }
 
-    // Basic auth check
+    // Basic auth check - require API key to be set
     const authHeader = req.headers.authorization;
-    const apiKey = process.env.SYNC_API_KEY || 'your-secret-key';
+    const apiKey = process.env.SYNC_API_KEY;
 
     if (authHeader !== `Bearer ${apiKey}`) {
         return res.status(401).json({ error: 'Unauthorized' });

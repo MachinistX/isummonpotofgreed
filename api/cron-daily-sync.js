@@ -16,7 +16,7 @@ export default async function handler(req, res) {
         const response = await fetch(syncUrl, {
             method: 'POST',
             headers: {
-                'Authorization': `Bearer ${process.env.SYNC_API_KEY || 'your-secret-key'}`
+                'Authorization': `Bearer ${process.env.SYNC_API_KEY}`
             }
         });
 
