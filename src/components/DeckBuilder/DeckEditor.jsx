@@ -29,6 +29,16 @@ export const DeckEditor = ({ deck, setDeck, onRemoveCard, onView }) => {
         return a.name.localeCompare(b.name);
     });
 
+    const [selectedCardUid, setSelectedCardUid] = useState(null);
+
+    const handleCardClick = (card) => {
+        if (selectedCardUid === card.uid) {
+            setSelectedCardUid(null);
+        } else {
+            setSelectedCardUid(card.uid);
+        }
+    };
+
     return (
         <div className="flex flex-col h-full bg-slate-900/50 rounded-xl border border-white/10 overflow-hidden">
             {/* Header / Tabs */}
@@ -70,23 +80,16 @@ export const DeckEditor = ({ deck, setDeck, onRemoveCard, onView }) => {
                     </div>
                 ) : (
                     <div className="grid grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2">
-                        {currentCards.map((card, index) => (
-                            <div key={`${card.id}-${index}`} className="relative group">
+                        {currentCards.map((card) => (
+                            <div key={card.uid} className="relative group">
                                 <YgoCard
                                     card={card}
                                     className="hover:scale-105 transition-transform"
+                                    isSelected={selectedCardUid === card.uid}
+                                    onClick={handleCardClick}
                                     onView={onView}
-                                    onContextMenu={(e) => {
-                                        e.preventDefault();
-                                        onRemoveCard(activeSection, index);
-                                    }}
+                                    onRemove={() => onRemoveCard(activeSection, card.uid)}
                                 />
-                                <button
-                                    onClick={() => onRemoveCard(activeSection, index)}
-                                    className="absolute -top-2 -right-2 bg-red-500/90 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
-                                >
-                                    <Trash2 className="w-3 h-3" />
-                                </button>
                             </div>
                         ))}
                     </div>

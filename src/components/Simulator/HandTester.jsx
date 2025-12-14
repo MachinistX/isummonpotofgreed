@@ -9,6 +9,7 @@ export const HandTester = ({ deck, combos, onView }) => {
     const [analysis, setAnalysis] = useState(null);
     const [achievedCombos, setAchievedCombos] = useState([]);
     const [selectedCombo, setSelectedCombo] = useState(null);
+    const [selectedCardKey, setSelectedCardKey] = useState(null);
 
     // Helper: Check if a combo is "Bricked" (Any copy of a brick card is in hand)
     const isComboBricked = (combo) => {
@@ -53,10 +54,19 @@ export const HandTester = ({ deck, combos, onView }) => {
         const newHand = drawHand(deck, 5);
         setHand(newHand);
         setAnalysis(analyzeHand(newHand));
+        setSelectedCardKey(null);
 
         const matches = checkCombos(newHand, combos);
         setAchievedCombos(matches);
         setSelectedCombo(matches.length > 0 ? matches[0] : null);
+    };
+
+    const handleCardClick = (key) => {
+        if (selectedCardKey === key) {
+            setSelectedCardKey(null);
+        } else {
+            setSelectedCardKey(key);
+        }
     };
 
     const outcome = selectedCombo ? getComboOutcome(hand, selectedCombo) : null;
@@ -88,11 +98,15 @@ export const HandTester = ({ deck, combos, onView }) => {
                             // Check if this specific card caused the currently SELECTED combo to brick
                             const isSelectedBrick = selectedCombo && isComboBricked(selectedCombo) && selectedCombo.bricks?.some(b => b.name === card.name);
 
+                            const key = `hand-${idx}`;
+
                             return (
                                 <div key={idx} className="relative group">
                                     <YgoCard
                                         card={card}
                                         onView={onView}
+                                        isSelected={selectedCardKey === key}
+                                        onClick={() => handleCardClick(key)}
                                         className={`
                                     w-32 
                                     ${isDead ? 'ring-4 ring-red-500/50 grayscale-[0.3]' : ''}
@@ -101,22 +115,22 @@ export const HandTester = ({ deck, combos, onView }) => {
                                 `}
                                     />
                                     {isDead && (
-                                        <div className="absolute top-2 right-2 bg-red-600 text-white text-xs px-2 py-1 rounded-full font-bold shadow-lg z-10">
+                                        <div className="absolute top-2 right-2 bg-red-600 text-white text-xs px-2 py-1 rounded-full font-bold shadow-lg z-10 pointer-events-none">
                                             DEAD
                                         </div>
                                     )}
                                     {isHandTrap && (
-                                        <div className="absolute top-2 left-2 bg-yellow-600 text-white text-xs px-2 py-1 rounded-full font-bold shadow-lg z-10">
+                                        <div className="absolute top-2 left-2 bg-yellow-600 text-white text-xs px-2 py-1 rounded-full font-bold shadow-lg z-10 pointer-events-none">
                                             HT
                                         </div>
                                     )}
                                     {isGarnet && (
-                                        <div className="absolute top-2 right-2 mt-6 bg-orange-600 text-white text-xs px-2 py-1 rounded-full font-bold shadow-lg z-10">
+                                        <div className="absolute top-2 right-2 mt-6 bg-orange-600 text-white text-xs px-2 py-1 rounded-full font-bold shadow-lg z-10 pointer-events-none">
                                             GAR
                                         </div>
                                     )}
                                     {isSelectedBrick && (
-                                        <div className="absolute bottom-2 inset-x-0 mx-auto w-max bg-orange-600/90 text-white text-xs px-2 py-1 rounded-full font-bold shadow-lg z-10 flex items-center gap-1">
+                                        <div className="absolute bottom-2 inset-x-0 mx-auto w-max bg-orange-600/90 text-white text-xs px-2 py-1 rounded-full font-bold shadow-lg z-10 flex items-center gap-1 pointer-events-none">
                                             <Ban className="w-3 h-3" /> BRICKED
                                         </div>
                                     )}
@@ -323,9 +337,19 @@ export const HandTester = ({ deck, combos, onView }) => {
                                         <div className="bg-slate-950/30 rounded-lg p-4 border border-green-500/20">
                                             <h4 className="font-bold text-green-400 mb-3 text-center">Resulting Field</h4>
                                             <div className="flex flex-wrap justify-center gap-2">
-                                                {selectedCombo.outputs.length > 0 ? selectedCombo.outputs.map((card, i) => (
-                                                    <YgoCard key={i} card={card} onView={onView} className="w-20" />
-                                                )) : (
+                                                {selectedCombo.outputs.length > 0 ? selectedCombo.outputs.map((card, i) => {
+                                                    const key = `field-${i}`;
+                                                    return (
+                                                        <YgoCard
+                                                            key={i}
+                                                            card={card}
+                                                            onView={onView}
+                                                            className="w-20"
+                                                            isSelected={selectedCardKey === key}
+                                                            onClick={() => handleCardClick(key)}
+                                                        />
+                                                    );
+                                                }) : (
                                                     <span className="text-slate-600 italic text-sm">No board defined</span>
                                                 )}
                                             </div>
@@ -335,9 +359,19 @@ export const HandTester = ({ deck, combos, onView }) => {
                                         <div className="bg-slate-950/30 rounded-lg p-4 border border-blue-500/20">
                                             <h4 className="font-bold text-blue-400 mb-3 text-center">Remaining in Hand</h4>
                                             <div className="flex flex-wrap justify-center gap-2">
-                                                {outcome && outcome.remaining.length > 0 ? outcome.remaining.map((card, i) => (
-                                                    <YgoCard key={i} card={card} onView={onView} className="w-20" />
-                                                )) : (
+                                                {outcome && outcome.remaining.length > 0 ? outcome.remaining.map((card, i) => {
+                                                    const key = `rem-${i}`;
+                                                    return (
+                                                        <YgoCard
+                                                            key={i}
+                                                            card={card}
+                                                            onView={onView}
+                                                            className="w-20"
+                                                            isSelected={selectedCardKey === key}
+                                                            onClick={() => handleCardClick(key)}
+                                                        />
+                                                    );
+                                                }) : (
                                                     <span className="text-slate-600 italic text-sm py-4">Hand empty</span>
                                                 )}
                                             </div>

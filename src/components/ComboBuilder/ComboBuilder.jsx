@@ -1,92 +1,73 @@
 import React, { useState, useRef } from 'react';
-import { CardSearch } from '../DeckBuilder/CardSearch';
+import { ResponsiveCardSearch } from '../ResponsiveCardSearch';
 import { ComboList } from './ComboList';
 import { ComboEditor } from './ComboEditor';
 import { VulnerabilityEditor } from './VulnerabilityEditor';
 import { BrickEditor } from './BrickEditor';
 
-// Helper to migrate legacy flat inputs to grouped inputs
-const migrateInputs = (inputs) => {
-    if (!inputs || inputs.length === 0) return [];
-    if (inputs[0].cards) return inputs; // Already grouped
-
-    // Convert legacy: Each card becomes a 1-card group (AND logic)
-    return inputs.map(card => ({
-        id: crypto.randomUUID(),
-        cards: [card]
-    }));
-};
-
 export const ComboBuilder = ({ combos, setCombos, onAddCard: propAddCard, onView, deck }) => {
-    const [viewMode, setViewMode] = useState('list'); // 'list', 'edit'
+    const [viewMode, setViewMode] = useState('list'); // 'list' | 'edit' | 'vulnerability' | 'bricks'
     const [draftCombo, setDraftCombo] = useState(null);
-    const [activeZone, setActiveZone] = useState('inputs'); // 'inputs', 'outputs'
+    const [activeZone, setActiveZone] = useState('inputs'); // 'inputs', 'outputs', 'bricks', 'threats', or specific IDs
     const fileInputRef = useRef(null);
 
+    // Helpers
+    const createCombo = () => ({
+        id: crypto.randomUUID(),
+        name: 'New Combo',
+        inputs: [{ id: crypto.randomUUID(), cards: [] }], // Start with 1 group
+        outputs: [],
+        bricks: [],
+        vulnerabilities: []
+    });
+
+    // Handlers
     const handleCreate = () => {
-        setDraftCombo({
-            id: crypto.randomUUID(),
-            name: 'New Combo',
-            inputs: [], // Array of Requirement Groups
-            outputs: [],
-            vulnerabilities: [],
-            bricks: []
-        });
+        const newCombo = createCombo();
+        setDraftCombo(newCombo);
         setViewMode('edit');
-        setActiveZone('inputs');
+        setActiveZone(newCombo.inputs[0].id);
     };
 
     const handleEdit = (combo) => {
-        setDraftCombo({
+        // Ensure structure compatibility
+        const validCombo = {
+            ...createCombo(),
             ...combo,
-            inputs: migrateInputs(combo.inputs),
-            bricks: combo.bricks || [] // Ensure bricks array exists
-        });
+            inputs: combo.inputs && combo.inputs.length > 0 ? combo.inputs : [{ id: crypto.randomUUID(), cards: [] }]
+        };
+        setDraftCombo(JSON.parse(JSON.stringify(validCombo))); // Deep copy
         setViewMode('edit');
         setActiveZone('inputs');
     };
 
     const handleVulnerability = (combo) => {
-        setDraftCombo({ ...combo, vulnerabilities: combo.vulnerabilities || [] });
+        setDraftCombo(JSON.parse(JSON.stringify(combo)));
         setViewMode('vulnerability');
         setActiveZone('threats');
     };
 
     const handleBricks = (combo) => {
-        setDraftCombo({ ...combo, bricks: combo.bricks || [] });
+        setDraftCombo(JSON.parse(JSON.stringify(combo)));
         setViewMode('bricks');
         setActiveZone('bricks');
     };
 
-    const handleCopy = (originalCombo) => {
-        const migratedInputs = migrateInputs(originalCombo.inputs);
+    const handleSave = () => {
+        if (!draftCombo) return;
 
-        // Deep copy groups and cards
-        const copiedInputs = migratedInputs.map(group => ({
-            id: crypto.randomUUID(),
-            cards: group.cards.map(c => ({ ...c, uid: crypto.randomUUID() }))
-        }));
-        const copiedOutputs = originalCombo.outputs.map(c => ({ ...c, uid: crypto.randomUUID() }));
-        const copiedBricks = (originalCombo.bricks || []).map(c => ({ ...c, uid: crypto.randomUUID() }));
-        const copiedVulns = (originalCombo.vulnerabilities || []).map(v => ({
-            ...v,
-            uid: crypto.randomUUID(),
-            responses: v.responses.map(r => ({ ...r, uid: crypto.randomUUID() }))
-        }));
-
-        const newCombo = {
-            ...originalCombo,
-            id: crypto.randomUUID(),
-            name: `${originalCombo.name} (Copy)`,
-            inputs: copiedInputs,
-            outputs: copiedOutputs,
-            vulnerabilities: copiedVulns,
-            bricks: copiedBricks
-        };
-
-        setDraftCombo(newCombo);
-        setViewMode('edit');
-        setActiveZone('inputs');
+        setCombos(prev => {
+            const index = prev.findIndex(c => c.id === draftCombo.id);
+            if (index >= 0) {
+                const newCombos = [...prev];
+                newCombos[index] = draftCombo;
+                return newCombos;
+            } else {
+                return [...prev, draftCombo];
+            }
+        });
+        setViewMode('list');
+        setDraftCombo(null);
     };
 
     const handleDelete = (id) => {
@@ -95,37 +76,29 @@ export const ComboBuilder = ({ combos, setCombos, onAddCard: propAddCard, onView
         }
     };
 
-    const handleSave = () => {
-        if (!draftCombo.name.trim()) {
-            alert('Please name your combo');
-            return;
+    const handleCopy = (id) => {
+        const original = combos.find(c => c.id === id);
+        if (original) {
+            const copy = {
+                ...JSON.parse(JSON.stringify(original)),
+                id: crypto.randomUUID(),
+                name: `${original.name} (Copy)`
+            };
+            setCombos(prev => [...prev, copy]);
         }
-
-        setCombos(prev => {
-            const index = prev.findIndex(c => c.id === draftCombo.id);
-            if (index >= 0) {
-                const newCombos = [...prev];
-                newCombos[index] = draftCombo;
-                return newCombos;
-            }
-            return [...prev, draftCombo];
-        });
-        setViewMode('list');
-        setDraftCombo(null);
     };
 
-    // --- Import / Export ---
-    const handleExport = () => {
-        const dataStr = JSON.stringify(combos, null, 2);
-        const blob = new Blob([dataStr], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = 'my-combos.json';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
+    const handleExport = (id) => {
+        const combo = combos.find(c => c.id === id);
+        if (combo) {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(combo, null, 2));
+            const downloadAnchorNode = document.createElement('a');
+            downloadAnchorNode.setAttribute("href", dataStr);
+            downloadAnchorNode.setAttribute("download", `${combo.name.replace(/\s+/g, '_')}.json`);
+            document.body.appendChild(downloadAnchorNode);
+            downloadAnchorNode.click();
+            downloadAnchorNode.remove();
+        }
     };
 
     const handleImportClick = () => {
@@ -133,57 +106,79 @@ export const ComboBuilder = ({ combos, setCombos, onAddCard: propAddCard, onView
     };
 
     const handleFileChange = (e) => {
-        const file = e.target.files?.[0];
+        const file = e.target.files[0];
         if (!file) return;
 
         const reader = new FileReader();
         reader.onload = (event) => {
             try {
                 const imported = JSON.parse(event.target.result);
-                if (!Array.isArray(imported)) throw new Error("Invalid format: Root must be an array");
-
-                const validCombos = imported.filter(c => c && typeof c === 'object' && c.name);
-
-                if (validCombos.length === 0) {
-                    alert("No valid combos found in file.");
-                    return;
+                if (imported.id && imported.name) {
+                    // Regenerate ID to avoid conflicts
+                    imported.id = crypto.randomUUID();
+                    setCombos(prev => [...prev, imported]);
+                } else {
+                    alert("Invalid combo file format");
                 }
-
-                // Re-assign IDs to prevent conflicts
-                const newCombos = validCombos.map(c => ({
-                    ...c,
-                    id: crypto.randomUUID(),
-                    name: `${c.name} (Imported)`,
-                    inputs: c.inputs, // assume format logic is handled by migration later if needed
-                    vulnerabilities: c.vulnerabilities || [],
-                    bricks: c.bricks || []
-                }));
-
-                setCombos(prev => [...prev, ...newCombos]);
-                alert(`Imported ${newCombos.length} combos successfully.`);
             } catch (err) {
-                alert("Failed to import: " + err.message);
+                console.error(err);
+                alert("Error parsing JSON");
             }
-            e.target.value = ''; // Reset
         };
         reader.readAsText(file);
+        e.target.value = null; // Reset
     };
 
     const handleAddCard = (card) => {
-        if (viewMode === 'list' || !draftCombo) return;
+        if (!draftCombo) return;
+
         const newCard = { ...card, uid: crypto.randomUUID() };
 
-        if (viewMode === 'bricks') {
+        if (viewMode === 'edit') {
+            if (activeZone === 'outputs') {
+                setDraftCombo(prev => ({
+                    ...prev,
+                    outputs: [...prev.outputs, newCard]
+                }));
+            } else {
+                // Determine target group. If activeZone matches a group ID, use it.
+                // If activeZone is 'inputs', use the LAST group or FIRST group.
+                const groupIndex = draftCombo.inputs.findIndex(g => g.id === activeZone);
+                if (groupIndex !== -1) {
+                    // Add to specific group
+                    setDraftCombo(prev => {
+                        const newInputs = [...prev.inputs];
+                        newInputs[groupIndex] = {
+                            ...newInputs[groupIndex],
+                            cards: [...newInputs[groupIndex].cards, newCard]
+                        };
+                        return { ...prev, inputs: newInputs };
+                    });
+                } else {
+                    // Default to last group if zone invalid or general 'inputs'
+                    // Or ask user to select group?
+                    // For now, fallback to last group
+                    if (draftCombo.inputs.length > 0) {
+                        setDraftCombo(prev => {
+                            const newInputs = [...prev.inputs];
+                            const lastIdx = newInputs.length - 1;
+                            newInputs[lastIdx] = {
+                                ...newInputs[lastIdx],
+                                cards: [...newInputs[lastIdx].cards, newCard]
+                            };
+                            return { ...prev, inputs: newInputs };
+                        });
+                    }
+                }
+            }
+        } else if (viewMode === 'bricks') {
             setDraftCombo(prev => ({
                 ...prev,
                 bricks: [...(prev.bricks || []), newCard]
             }));
-            return;
-        }
-
-        if (viewMode === 'vulnerability') {
+        } else if (viewMode === 'vulnerability') {
             if (activeZone === 'threats') {
-                // Add new Threat
+                // Add new threat entry
                 setDraftCombo(prev => ({
                     ...prev,
                     vulnerabilities: [...(prev.vulnerabilities || []), {
@@ -193,48 +188,19 @@ export const ComboBuilder = ({ combos, setCombos, onAddCard: propAddCard, onView
                     }]
                 }));
             } else {
-                // Add Response to specific Threat (activeZone = threatUid)
-                setDraftCombo(prev => ({
-                    ...prev,
-                    vulnerabilities: prev.vulnerabilities?.map(v => {
-                        if (v.uid === activeZone) {
-                            return { ...v, responses: [...v.responses, newCard] };
-                        }
-                        return v;
-                    })
-                }));
-            }
-            return;
-        }
-
-        // Edit Mode Logic
-        if (activeZone === 'outputs') {
-            setDraftCombo(prev => ({
-                ...prev,
-                outputs: [...prev.outputs, newCard]
-            }));
-        } else {
-            // Check if activeZone matches an existing group ID
-            const targetGroupId = activeZone;
-            const groupExists = draftCombo.inputs.some(g => g.id === targetGroupId);
-
-            setDraftCombo(prev => {
-                if (groupExists) {
-                    // Add to Selected Group (OR logic)
-                    const inputs = prev.inputs.map(group => {
-                        if (group.id === targetGroupId) {
-                            return { ...group, cards: [...group.cards, newCard] };
-                        }
-                        return group;
+                // activeZone likely a Vulnerability UID
+                const vulnIndex = draftCombo.vulnerabilities?.findIndex(v => v.uid === activeZone);
+                if (vulnIndex !== undefined && vulnIndex !== -1) {
+                    setDraftCombo(prev => {
+                        const newVulns = [...prev.vulnerabilities];
+                        newVulns[vulnIndex] = {
+                            ...newVulns[vulnIndex],
+                            responses: [...newVulns[vulnIndex].responses, newCard]
+                        };
+                        return { ...prev, vulnerabilities: newVulns };
                     });
-                    return { ...prev, inputs };
-                } else {
-                    // No group selected (or valid): Create NEW Group (AND logic)
-                    const inputs = [...prev.inputs];
-                    inputs.push({ id: crypto.randomUUID(), cards: [newCard] });
-                    return { ...prev, inputs };
                 }
-            });
+            }
         }
     };
 
@@ -249,13 +215,15 @@ export const ComboBuilder = ({ combos, setCombos, onAddCard: propAddCard, onView
             />
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-full">
-                {/* Search Sidebar */}
-                <div className="lg:col-span-4 h-full border-r border-white/10 pr-4">
-                    <CardSearch onAddCard={handleAddCard} onView={onView} />
+                {/* Search Sidebar / Mobile Drawer */}
+                <div className="lg:col-span-4 h-full lg:border-r border-white/10 lg:pr-4 pointer-events-none lg:pointer-events-auto">
+                    <div className="pointer-events-auto h-full">
+                        <ResponsiveCardSearch onAddCard={handleAddCard} onView={onView} />
+                    </div>
                 </div>
 
                 {/* Main Content */}
-                <div className="lg:col-span-8 h-full">
+                <div className="lg:col-span-8 h-full pb-16 lg:pb-0 overflow-hidden">
                     {viewMode === 'list' && (
                         <ComboList
                             combos={combos}
@@ -270,6 +238,7 @@ export const ComboBuilder = ({ combos, setCombos, onAddCard: propAddCard, onView
                             deck={deck}
                         />
                     )}
+
                     {viewMode === 'edit' && (
                         <ComboEditor
                             combo={draftCombo}
@@ -288,22 +257,24 @@ export const ComboBuilder = ({ combos, setCombos, onAddCard: propAddCard, onView
                             onView={onView}
                         />
                     )}
+
                     {viewMode === 'vulnerability' && (
                         <VulnerabilityEditor
                             combo={draftCombo}
                             setCombo={setDraftCombo}
-                            onBack={handleSave} // Save on back implicitly for now, or just back? Let's use Save to ensure persistent updates.
+                            onBack={handleSave} // Implicitly save when going back
                             activeZone={activeZone}
                             setActiveZone={setActiveZone}
                             deck={deck}
                             onView={onView}
                         />
                     )}
+
                     {viewMode === 'bricks' && (
                         <BrickEditor
                             combo={draftCombo}
                             setCombo={setDraftCombo}
-                            onBack={handleSave}
+                            onBack={handleSave} // Implicitly save
                             activeZone={activeZone}
                             setActiveZone={setActiveZone}
                             deck={deck}

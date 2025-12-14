@@ -12,6 +12,7 @@ export const CardSearch = ({ onAddCard, onView }) => {
         type: '', // Monster, Spell, Trap
         race: '', // Quick-Play, Continuous, Dragon, etc.
     });
+    const [selectedCardId, setSelectedCardId] = useState(null);
     const [results, setResults] = useState([]);
     const [loading, setLoading] = useState(false);
     const [page, setPage] = useState(1);
@@ -69,6 +70,15 @@ export const CardSearch = ({ onAddCard, onView }) => {
 
     const handleFilterChange = (key, value) => {
         setFilters(prev => ({ ...prev, [key]: value }));
+    };
+
+    // Clear selection when clicking outside (handled by parent?) or toggling
+    const handleCardClick = (card) => {
+        if (selectedCardId === card.id) {
+            setSelectedCardId(null); // Deselect
+        } else {
+            setSelectedCardId(card.id); // Select
+        }
     };
 
     const hasActiveSearchOrFilter = query.length > 0 || filters.type || filters.race;
@@ -162,7 +172,7 @@ export const CardSearch = ({ onAddCard, onView }) => {
             </div>
 
             {/* Results Grid */}
-            <div className="flex-1 overflow-y-auto p-4">
+            <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
                 {loading && (
                     <div className="text-center text-slate-400 py-8">
                         Loading cards...
@@ -182,12 +192,14 @@ export const CardSearch = ({ onAddCard, onView }) => {
                 )}
 
                 {!loading && paginatedResults.length > 0 && (
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                    <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
                         {paginatedResults.map(card => (
                             <div key={card.id} className="relative group">
                                 <YgoCard
                                     card={card}
-                                    onClick={() => onAddCard(card)}
+                                    onClick={handleCardClick}
+                                    isSelected={selectedCardId === card.id}
+                                    onAdd={onAddCard}
                                     onView={onView}
                                 />
                             </div>

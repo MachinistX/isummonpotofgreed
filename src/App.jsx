@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Layout } from './components/Layout';
-import { CardSearch } from './components/DeckBuilder/CardSearch';
+import { ResponsiveCardSearch } from './components/ResponsiveCardSearch';
 import { DeckEditor } from './components/DeckBuilder/DeckEditor';
 import { HandTester } from './components/Simulator/HandTester';
 import { BatchSim } from './components/Simulator/BatchSim';
@@ -105,12 +105,25 @@ function App() {
     }));
   };
 
-  const handleRemoveCard = (section, index) => {
-    setDeck(prev => {
-      const newSection = [...prev[section]];
-      newSection.splice(index, 1);
-      return { ...prev, [section]: newSection };
-    });
+  const handleRemoveCard = (section, isIndexOrUid) => {
+    // Legacy support for index (number) vs new UID (string)
+    // Though we should switch fully to UID.
+    if (typeof isIndexOrUid === 'number') {
+      // Fallback or legacy call
+      setDeck(prev => {
+        const newSection = [...prev[section]];
+        newSection.splice(isIndexOrUid, 1);
+        return { ...prev, [section]: newSection };
+      });
+      return;
+    }
+
+    // UID removal
+    const uid = isIndexOrUid;
+    setDeck(prev => ({
+      ...prev,
+      [section]: prev[section].filter(c => c.uid !== uid)
+    }));
   };
 
   const handleExportYDK = () => {
@@ -142,13 +155,16 @@ function App() {
       <Layout>
         {view === 'builder' && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-[calc(100vh-8rem)]">
-            {/* Left: Card Search (4 cols) */}
-            <div className="lg:col-span-4 h-full">
-              <CardSearch onAddCard={handleAddCard} onView={setViewingCard} />
+            {/* On mobile, this div is technically "empty" because ResponsiveCardSearch becomes fixed. 
+                But we keep the structure. */}
+            <div className="lg:col-span-4 h-full pointer-events-none lg:pointer-events-auto">
+              <div className="pointer-events-auto h-full">
+                <ResponsiveCardSearch onAddCard={handleAddCard} onView={setViewingCard} />
+              </div>
             </div>
 
-            {/* Right: Deck Editor (8 cols) */}
-            <div className="lg:col-span-8 h-full flex flex-col gap-4">
+            <div className="lg:col-span-8 h-full pb-16 lg:pb-0 flex flex-col gap-4">
+              {/* Added padding-bottom on mobile so content isn't hidden behind the collapsed drawer */}
               <div className="flex justify-end gap-2">
                 <Button variant="secondary" onClick={handleExportYDK}>
                   <Download className="w-4 h-4" /> Export YDK
