@@ -4,7 +4,7 @@ import { Plus, Edit2, Trash2, Copy, Download, Upload, AlertTriangle, Shield, Ban
 import { Button } from '../ui/Button';
 import { YgoCard } from '../Card';
 
-export const ComboList = ({ combos, onCreate, onEdit, onDelete, onCopy, onExport, onImport, onVulnerability, onBricks, deck }) => {
+export const ComboList = ({ combos, onCreate, onEdit, onDelete, onCopy, onExport, onExportAll, onImport, onVulnerability, onBricks, deck }) => {
     const [openMenuId, setOpenMenuId] = useState(null);
     const menuRef = useRef(null);
 
@@ -57,6 +57,9 @@ export const ComboList = ({ combos, onCreate, onEdit, onDelete, onCopy, onExport
                     </p>
                 </div>
                 <div className="flex gap-2">
+                    <Button variant="secondary" onClick={onExportAll} className="text-xs hidden md:flex">
+                        <Download className="w-3 h-3 mr-1" /> Export All
+                    </Button>
                     <Button variant="secondary" onClick={onImport} className="text-xs hidden md:flex">
                         <Upload className="w-3 h-3 mr-1" /> Import
                     </Button>

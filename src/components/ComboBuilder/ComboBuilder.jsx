@@ -115,6 +115,17 @@ export const ComboBuilder = ({ combos, setCombos, onAddCard: propAddCard, onView
         }
     };
 
+    const handleExportAll = () => {
+        if (combos.length === 0) return;
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(combos, null, 2));
+        const downloadAnchorNode = document.createElement('a');
+        downloadAnchorNode.setAttribute("href", dataStr);
+        downloadAnchorNode.setAttribute("download", `all_combos_${new Date().toISOString().split('T')[0]}.json`);
+        document.body.appendChild(downloadAnchorNode);
+        downloadAnchorNode.click();
+        downloadAnchorNode.remove();
+    };
+
     const handleImportClick = () => {
         fileInputRef.current?.click();
     };
@@ -127,7 +138,26 @@ export const ComboBuilder = ({ combos, setCombos, onAddCard: propAddCard, onView
         reader.onload = (event) => {
             try {
                 const imported = JSON.parse(event.target.result);
-                if (imported.id && imported.name) {
+
+                if (Array.isArray(imported)) {
+                    // Start of batch import
+                    const newCombos = [];
+                    imported.forEach(item => {
+                        if (item.id || item.name) {
+                            const migrated = migrateCombo(item);
+                            migrated.id = crypto.randomUUID();
+                            newCombos.push(migrated);
+                        }
+                    });
+
+                    if (newCombos.length > 0) {
+                        setCombos(prev => [...prev, ...newCombos]);
+                        alert(`Imported ${newCombos.length} combos successfully.`);
+                    } else {
+                        alert("No valid combos found in file.");
+                    }
+                } else if (imported.id || imported.name) {
+                    // Single import
                     // Regenerate ID to avoid conflicts and MIGRATE format
                     const migrated = migrateCombo(imported);
                     migrated.id = crypto.randomUUID();
@@ -249,6 +279,7 @@ export const ComboBuilder = ({ combos, setCombos, onAddCard: propAddCard, onView
                             onDelete={handleDelete}
                             onCopy={handleCopy}
                             onExport={handleExport}
+                            onExportAll={handleExportAll}
                             onImport={handleImportClick}
                             deck={deck}
                         />
