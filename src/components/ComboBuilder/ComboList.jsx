@@ -60,9 +60,6 @@ export const ComboList = ({ combos, onCreate, onEdit, onDelete, onCopy, onExport
                     <Button variant="secondary" onClick={onImport} className="text-xs hidden md:flex">
                         <Upload className="w-3 h-3 mr-1" /> Import
                     </Button>
-                    <Button variant="secondary" onClick={onExport} className="text-xs hidden md:flex">
-                        <Download className="w-3 h-3 mr-1" /> Export
-                    </Button>
                     <Button onClick={onCreate} className="bg-purple-600 hover:bg-purple-500">
                         <Plus className="w-4 h-4 mr-2" />
                         Create
@@ -153,6 +150,13 @@ export const ComboList = ({ combos, onCreate, onEdit, onDelete, onCopy, onExport
                                                 className="flex items-center gap-2 px-4 py-2 text-sm text-slate-300 hover:bg-slate-700 hover:text-white text-left"
                                             >
                                                 <Copy className="w-4 h-4" /> Duplicate
+                                            </button>
+                                            <div className="h-px bg-slate-700 my-1" />
+                                            <button
+                                                onClick={() => { onExport(combo.id); setOpenMenuId(null); }}
+                                                className="flex items-center gap-2 px-4 py-2 text-sm text-slate-300 hover:bg-slate-700 hover:text-white text-left"
+                                            >
+                                                <Download className="w-4 h-4" /> Export
                                             </button>
                                             <div className="h-px bg-slate-700 my-1" />
                                             <button

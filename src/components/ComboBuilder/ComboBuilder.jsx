@@ -128,9 +128,10 @@ export const ComboBuilder = ({ combos, setCombos, onAddCard: propAddCard, onView
             try {
                 const imported = JSON.parse(event.target.result);
                 if (imported.id && imported.name) {
-                    // Regenerate ID to avoid conflicts
-                    imported.id = crypto.randomUUID();
-                    setCombos(prev => [...prev, imported]);
+                    // Regenerate ID to avoid conflicts and MIGRATE format
+                    const migrated = migrateCombo(imported);
+                    migrated.id = crypto.randomUUID();
+                    setCombos(prev => [...prev, migrated]);
                 } else {
                     alert("Invalid combo file format");
                 }
