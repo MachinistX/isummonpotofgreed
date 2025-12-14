@@ -99,8 +99,8 @@ export const ComboEditor = ({
                 {/* Inputs Section */}
                 <div className={`
                     flex-col rounded-xl border transition-all duration-300
-                    ${activeZone !== 'outputs' ? 'flex flex-1' : 'hidden lg:flex lg:w-1/3 opacity-50 hover:opacity-100'}
-                    ${activeZone !== 'outputs' ? 'bg-slate-800/50 border-purple-500/50 shadow-[0_0_20px_rgba(168,85,247,0.1)]' : 'bg-slate-900/30 border-slate-800'}
+                    ${activeZone !== 'outputs' ? 'flex flex-1' : 'flex lg:flex lg:w-1/3'}
+                    ${activeZone !== 'outputs' ? 'bg-slate-800/50 border-purple-500/50 shadow-[0_0_20px_rgba(168,85,247,0.1)]' : 'bg-slate-900/30 border-slate-800 lg:opacity-50 lg:hover:opacity-100'}
                 `}>
                     {/* Header (Accordion Toggle on Mobile) */}
                     <div
@@ -119,7 +119,7 @@ export const ComboEditor = ({
                     </div>
 
                     {/* Content */}
-                    <div className="p-4 pt-0 space-y-4">
+                    <div className={`p-4 pt-0 space-y-4 ${activeZone === 'outputs' ? 'hidden lg:block' : ''}`}>
                         {combo.inputs.map((group, groupIdx) => {
                             const isGroupActive = activeZone === group.id;
                             return (
@@ -201,8 +201,8 @@ export const ComboEditor = ({
                 {/* Outputs Section */}
                 <div className={`
                     flex-col rounded-xl border transition-all duration-300
-                    ${activeZone === 'outputs' ? 'flex flex-1' : 'hidden lg:flex lg:w-1/3 opacity-50 hover:opacity-100'}
-                    ${activeZone === 'outputs' ? 'bg-slate-800/50 border-green-500/50 shadow-[0_0_20px_rgba(34,197,94,0.1)]' : 'bg-slate-900/30 border-slate-800'}
+                    ${activeZone === 'outputs' ? 'flex flex-1' : 'flex lg:flex lg:w-1/3'}
+                    ${activeZone === 'outputs' ? 'bg-slate-800/50 border-green-500/50 shadow-[0_0_20px_rgba(34,197,94,0.1)]' : 'bg-slate-900/30 border-slate-800 lg:opacity-50 lg:hover:opacity-100'}
                 `}>
                     <div
                         className="p-4 cursor-pointer lg:cursor-default flex justify-between items-center"
@@ -215,7 +215,7 @@ export const ComboEditor = ({
                         {activeZone === 'outputs' ? <ChevronUp className="lg:hidden w-4 h-4" /> : <ChevronDown className="lg:hidden w-4 h-4" />}
                     </div>
 
-                    <div className="p-4 pt-0">
+                    <div className={`p-4 pt-0 ${activeZone !== 'outputs' ? 'hidden lg:block' : ''}`}>
                         <div className="flex flex-wrap gap-3">
                             {combo.outputs.map(card => {
                                 const isMissing = !checkInDeck(card);
