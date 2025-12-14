@@ -60,7 +60,7 @@ export const DeckEditor = ({ deck, setDeck, onRemoveCard, onView }) => {
                     ))}
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="hidden md:flex items-center gap-2">
                     <span className="text-xs text-slate-500 font-mono">
                         {deck.main.length} Main | {deck.extra.length} Extra | {deck.side.length} Side
                     </span>
