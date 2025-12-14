@@ -192,7 +192,7 @@ export const CardSearch = ({ onAddCard, onView }) => {
                 )}
 
                 {!loading && paginatedResults.length > 0 && (
-                    <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+                    <div className="grid grid-cols-4 lg:grid-cols-3 gap-3">
                         {paginatedResults.map(card => (
                             <div key={card.id} className="relative group">
                                 <YgoCard
