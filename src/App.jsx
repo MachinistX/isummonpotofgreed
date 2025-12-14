@@ -154,7 +154,7 @@ function App() {
     <ErrorBoundary>
       <Layout>
         {view === 'builder' && (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-[calc(100vh-8rem)]">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-0 lg:gap-6 h-[calc(100vh-8rem)]">
             {/* On mobile, this div is technically "empty" because ResponsiveCardSearch becomes fixed. 
                 But we keep the structure. */}
             <div className="lg:col-span-4 h-full pointer-events-none lg:pointer-events-auto">
