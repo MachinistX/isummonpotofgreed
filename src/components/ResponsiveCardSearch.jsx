@@ -18,7 +18,7 @@ export const ResponsiveCardSearch = (props) => {
                 border-t border-white/20 lg:border-none
                 shadow-2xl lg:shadow-none
                 transition-all duration-300 ease-in-out
-                ${isOpen ? 'h-[85vh]' : 'h-14'} lg:h-full
+                ${isOpen ? 'h-[50vh]' : 'h-14'} lg:h-full
             `}
         >
             {/* Mobile Handle */}
