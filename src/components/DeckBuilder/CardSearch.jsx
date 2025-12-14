@@ -4,7 +4,7 @@ import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
 import { YgoCard } from '../Card';
 
-const PAGE_SIZE = 12; // 3 rows of 4 cards approx
+
 
 export const CardSearch = ({ onAddCard, onView }) => {
     const [query, setQuery] = useState('');
@@ -17,6 +17,25 @@ export const CardSearch = ({ onAddCard, onView }) => {
     const [loading, setLoading] = useState(false);
     const [page, setPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
+    const [pageSize, setPageSize] = useState(window.innerWidth < 1024 ? 4 : 12);
+
+    // Responsive Page Size
+    useEffect(() => {
+        const handleResize = () => {
+            setPageSize(window.innerWidth < 1024 ? 4 : 12);
+        };
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
+
+    // Sync Total Pages
+    useEffect(() => {
+        setTotalPages(Math.ceil(results.length / pageSize) || 1);
+        // If current page is out of bounds after resize, reset to 1
+        if (page > Math.ceil(results.length / pageSize)) {
+            setPage(1);
+        }
+    }, [results, pageSize]);
 
     // Debounce search and fetch from database API
     useEffect(() => {
@@ -44,29 +63,26 @@ export const CardSearch = ({ onAddCard, onView }) => {
 
                     if (data.data) {
                         setResults(data.data);
-                        setTotalPages(Math.ceil(data.data.length / PAGE_SIZE));
+                        // totalPages handles itself via effect
                         setPage(1);
                     } else {
                         setResults([]);
-                        setTotalPages(1);
                     }
                 } catch (error) {
                     console.error('Card search error:', error);
                     setResults([]);
-                    setTotalPages(1);
                 } finally {
                     setLoading(false);
                 }
             } else {
                 setResults([]);
-                setTotalPages(1);
             }
         }, 300);
 
         return () => clearTimeout(timer);
     }, [query, filters]);
 
-    const paginatedResults = results.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+    const paginatedResults = results.slice((page - 1) * pageSize, page * pageSize);
 
     const handleFilterChange = (key, value) => {
         setFilters(prev => ({ ...prev, [key]: value }));
