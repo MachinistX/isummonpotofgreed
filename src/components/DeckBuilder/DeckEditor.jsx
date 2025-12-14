@@ -42,7 +42,7 @@ export const DeckEditor = ({ deck, setDeck, onRemoveCard, onView }) => {
     return (
         <div className="flex flex-col h-full bg-slate-900/50 rounded-xl border border-white/10 overflow-hidden">
             {/* Header / Tabs */}
-            <div className="flex items-center justify-between p-4 border-b border-white/10 bg-slate-900/80">
+            <div className="flex items-center justify-center md:justify-between p-4 border-b border-white/10 bg-slate-900/80">
                 <div className="flex bg-slate-800 rounded-lg p-1">
                     {['main', 'extra', 'side'].map(section => (
                         <button
