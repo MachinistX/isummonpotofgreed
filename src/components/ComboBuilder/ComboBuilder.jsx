@@ -22,6 +22,19 @@ export const ComboBuilder = ({ combos, setCombos, onAddCard: propAddCard, onView
     });
 
     // Handlers
+    // Link to migrateCombo logic
+    const migrateCombo = (combo) => {
+        let inputs = combo.inputs || [];
+        // Legacy check: If inputs has items but the first item lacks 'cards' property, it's a flat array of cards
+        if (inputs.length > 0 && !inputs[0].cards) {
+            inputs = [{ id: crypto.randomUUID(), cards: inputs }];
+        } else if (inputs.length === 0) {
+            // Ensure at least one empty group exists
+            inputs = [{ id: crypto.randomUUID(), cards: [] }];
+        }
+        return { ...combo, inputs };
+    };
+
     const handleCreate = () => {
         const newCombo = createCombo();
         setDraftCombo(newCombo);
@@ -30,25 +43,26 @@ export const ComboBuilder = ({ combos, setCombos, onAddCard: propAddCard, onView
     };
 
     const handleEdit = (combo) => {
-        // Ensure structure compatibility
-        const validCombo = {
-            ...createCombo(),
-            ...combo,
-            inputs: combo.inputs && combo.inputs.length > 0 ? combo.inputs : [{ id: crypto.randomUUID(), cards: [] }]
-        };
+        // Ensure structure compatibility via migration
+        const validCombo = migrateCombo({
+            ...createCombo(), // Defaults
+            ...combo
+        });
         setDraftCombo(JSON.parse(JSON.stringify(validCombo))); // Deep copy
         setViewMode('edit');
         setActiveZone('inputs');
     };
 
     const handleVulnerability = (combo) => {
-        setDraftCombo(JSON.parse(JSON.stringify(combo)));
+        const validCombo = migrateCombo({ ...createCombo(), ...combo });
+        setDraftCombo(JSON.parse(JSON.stringify(validCombo)));
         setViewMode('vulnerability');
         setActiveZone('threats');
     };
 
     const handleBricks = (combo) => {
-        setDraftCombo(JSON.parse(JSON.stringify(combo)));
+        const validCombo = migrateCombo({ ...createCombo(), ...combo });
+        setDraftCombo(JSON.parse(JSON.stringify(validCombo)));
         setViewMode('bricks');
         setActiveZone('bricks');
     };
