@@ -57,15 +57,15 @@ export const ComboList = ({ combos, onCreate, onEdit, onDelete, onCopy, onExport
                     </p>
                 </div>
                 <div className="flex gap-2">
-                    <Button variant="secondary" onClick={onExportAll} className="text-xs hidden md:flex">
-                        <Download className="w-3 h-3 mr-1" /> Export All
+                    <Button variant="secondary" onClick={onExportAll} className="text-xs flex">
+                        <Download className="w-3 h-3 md:mr-1" /> <span className="hidden md:inline">Export All</span>
                     </Button>
-                    <Button variant="secondary" onClick={onImport} className="text-xs hidden md:flex">
-                        <Upload className="w-3 h-3 mr-1" /> Import
+                    <Button variant="secondary" onClick={onImport} className="text-xs flex">
+                        <Upload className="w-3 h-3 md:mr-1" /> <span className="hidden md:inline">Import</span>
                     </Button>
                     <Button onClick={onCreate} className="bg-purple-600 hover:bg-purple-500">
-                        <Plus className="w-4 h-4 mr-2" />
-                        Create
+                        <Plus className="w-4 h-4 md:mr-2" />
+                        <span className="hidden md:inline">Create</span>
                     </Button>
                 </div>
             </div>
