@@ -232,7 +232,7 @@ function App() {
         )}
 
         {view === 'combos' && (
-          <div className="max-w-7xl mx-auto h-[calc(100vh-8rem)]">
+          <div className="max-w-7xl mx-auto">
             <ComboBuilder
               combos={combos}
               setCombos={setCombos}
